@@ -1,7 +1,5 @@
 # NekoShelf 猫咪书架
 
-<img src="docs/icon-256.png" alt="NekoShelf" width="96" height="96" />
-
 **中文** | [English](README.en.md)
 
 单容器的私有媒体库：把散落在 NAS 上的**漫画目录、压缩包、图片合集和视频**统一索引，浏览器里直接阅读和播放。默认**只读**，不改名、不解压、不搬运你的文件。
@@ -22,8 +20,7 @@
 | 双语对照 | 识别 `_A` / `_A_CN` / `_EN` 等语言配对，阅读器可切换中/原/并排 |
 | 搜索 | 关键词 + 排除 + 精确 + 通配 + 标签 + 页数/进度过滤；`GET /api/openapi.json` 有完整契约 |
 | AI 搜索 | 一句话描述由模型翻译成查询语法后在本地检索（默认 DeepSeek，默认关闭） |
-| 作者 / 系列 | 从 ComicInfo 与目录名提取作者，按作者、系列浏览并推荐相关作品；标签按「命名空间：a、b」成行展示，点击即搜索 |
-| 合集与章节 | 图集合集 / 视频剧集 / 多话漫画按目录合并为一个作品，详情页列章节、可直接跳到对应分部 |
+| 作者 / 系列 | 从 ComicInfo 与目录名提取作者，按作者、系列浏览并推荐相关作品 |
 | 文件树 | 按磁盘真实目录结构浏览（只读），带作品标记的条目可直接打开 |
 | E-H 元数据 | 可选：以里站为源补齐标签/页数（默认关闭，只补缺失，手动单条触发） |
 | 整理与写回 | 重命名/NFO 写回默认只预览（dry-run），开启写回需环境变量+开关+二次确认，并留可撤销记录 |
@@ -39,7 +36,7 @@ docker run -d --name nekoshelf -p 8080:8080 \
   -v /你的配置目录:/config \
   -v /你的缓存目录:/cache \
   -e PUID=1000 -e PGID=1000 -e TZ=Asia/Shanghai \
-  nekoshelf:0.6.4
+  nekoshelf:0.6.1
 ```
 
 打开 `http://NAS地址:8080` → 首次会跳到 `/setup` 设置管理员账号 → 添加媒体库（根路径填**容器内**路径，如 `/data`）→ 点扫描。扫描只读，期间可以正常浏览已索引内容；点开作品即可阅读。
@@ -47,25 +44,23 @@ docker run -d --name nekoshelf -p 8080:8080 \
 也可以用 Compose：
 
 ```bash
-docker buildx build -t nekoshelf:0.6.4 --load -f docker/Dockerfile .
+docker buildx build -t nekoshelf:0.6.1 --load -f docker/Dockerfile .
 docker compose -f docker/docker-compose.yml up -d
 ```
 
-## 界面
+## 截图
 
-以下截图来自**合成示例数据**（示例作品、示例作者、示例页面），不含任何真实媒体内容。
-
-| 书库 | 阅读器 |
+| 书库 | 阅读器（双页） |
 | --- | --- |
-| ![书库](docs/screenshots/ui_index.png) | ![阅读器](docs/screenshots/ui_reader_1.png) |
+| ![书库](docs/screenshots/m6_index.png) | ![阅读器](docs/screenshots/m3-reader-panel-390.png) |
 
 | 作品详情 | 按作者浏览 |
 | --- | --- |
-| ![作品详情](docs/screenshots/ui_works_1.png) | ![作者](docs/screenshots/ui_authors.png) |
+| ![详情](docs/screenshots/m4_works_2.png) | ![作者](docs/screenshots/m6_authors.png) |
 
-| 任务中心 | 设置 |
+| 文件树 | 任务中心 |
 | --- | --- |
-| ![任务中心](docs/screenshots/ui_jobs.png) | ![设置](docs/screenshots/ui_settings.png) |
+| ![文件树](docs/screenshots/m6_tree.png) | ![任务](docs/screenshots/m4_jobs.png) |
 
 ## 环境变量
 

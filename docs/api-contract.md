@@ -238,6 +238,14 @@ LLM 只把「一句话描述」翻译成上面的查询语法，检索仍由服�
 - 整理批量执行仍为同步请求（无进度条）；`editions` 字段为兼容保留，恒为空数组。
 - 向量检索 / 语义近邻：「画风类似 X」这类需求不在 范围内。
 
+## 章节详情（合集/多话作品）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/works/{id}/chapters/{index}` | 单章详情：`{work:{id,title,titleZh,kind,pageCount,authors,series}, chapter:{index,title,startPage,pageCount}, prevIndex, nextIndex, coverThumbUrl, coverImageUrl}`；`index` 为章节序号（从 0 开始，与详情里 `chapters[].index` 一致），不存在返回 404 `chapter_not_found` |
+
+搜索语法补充：标签名含空格时用引号整体匹配，例如 `tag:"big breasts"`（Web 端点击标签会自动加引号）。
+
 ## 0.6.0 新增：作者 / 系列 / 文件树 / 相关推荐 / AI 操作
 
 所有接口都需要登录态（Cookie 或 Bearer Token），错误格式仍为 `{error:{code,message}}`。

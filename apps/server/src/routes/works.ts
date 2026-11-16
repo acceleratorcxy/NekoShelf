@@ -12,7 +12,9 @@ import {
   relatedWorkGroups,
   relatedWorks,
   listMergedInto,
-  listPagePairLinks,
+  hasPagePairLinks,
+  listWorkPageRows,
+  findPairOrdinals,
   listWorkChapters,
   listWorkPages,
   listWorks,
@@ -81,7 +83,7 @@ function variantPageIndex(
   return alt?.ordinal ?? index;
 }
 
-function pageRefs(db: Db, work: WorkRow): Array<{
+function pageRefs(db: Db, work: WorkRow, limit?: number): Array<{
   index: number;
   width: number | null;
   height: number | null;
@@ -92,9 +94,17 @@ function pageRefs(db: Db, work: WorkRow): Array<{
   /** 对照语言版本的页码；无则为 null。 */
   variantIndex: number | null;
 }> {
-  const links = new Map(listPagePairLinks(db, work.id).map((link) => [link.ordinal, link]));
-  return listWorkPages(db, work.id).map((page) => {
-    const link = links.get(page.ordinal);
+  const pages = listWorkPageRows(db, work.id, limit);
+  const pairKeys = [...new Set(pages.map((page) => page.pair_key).filter((key): key is string => !!key))];
+  const firstOrdinalByKey = findPairOrdinals(db, work.id, pairKeys);
+  return pages.map((page) => {
+    const key = page.pair_key;
+    const counterpart = key ? firstOrdinalByKey.get(key) : undefined;
+    const link = {
+      lang: page.lang ?? null,
+      pairKey: key ?? null,
+      variantOf: counterpart !== undefined && counterpart !== page.ordinal ? counterpart : null,
+    };
     return {
       index: page.ordinal,
       width: page.width,
@@ -179,7 +189,6 @@ export function registerWorkRoutes(app: FastifyInstance, db: Db, config: AppConf
     }
     const tags = workTagsFor(db, [work.id]);
     const progressRow = getProgress(db, work.id);
-    const links = listPagePairLinks(db, work.id);
     return {
       work: {
         ...cardFor(db, work, tags),
@@ -198,7 +207,7 @@ export function registerWorkRoutes(app: FastifyInstance, db: Db, config: AppConf
         seriesId: work.series_id ?? null,
       },
       editions: [],
-      pages: preview ? pageRefs(db, work).slice(0, 24) : pageRefs(db, work),
+      pages: preview ? pageRefs(db, work, 24) : pageRefs(db, work),
       pageCount: work.page_count,
       /** 章节（多话漫画/杂图合集/剧集式视频）；单文件作品为空数组。 */
       chapters: listWorkChapters(db, work.id).map((chapter) => ({
@@ -209,7 +218,7 @@ export function registerWorkRoutes(app: FastifyInstance, db: Db, config: AppConf
       })),
       coverIndex: work.kind === "video" ? null : resolveCoverIndex(db, work),
       /** 双语包：页面对照语言版本存在。 */
-      dualLanguage: links.some((link) => link.lang !== null),
+      dualLanguage: hasPagePairLinks(db, work.id),
       progress: progressRow
         ? { page: progressRow.page, pageCount: progressRow.page_count }
         : null,
@@ -245,13 +254,17 @@ export function registerWorkRoutes(app: FastifyInstance, db: Db, config: AppConf
     }
     if (work.kind === "video") {
       const chapters = listWorkChapters(db, work.id);
-      const first = chapters[0];
+      const rawChapter = Number((request.query as { chapter?: string }).chapter ?? "0");
+      const chapterIndex = chapters.findIndex((item) =>
+        item.sort === (Number.isFinite(rawChapter) ? Math.floor(rawChapter) : 0),
+      );
+      const target = chapterIndex >= 0 ? chapters[chapterIndex]! : chapters[0];
       const poster = await videoPosterBuffer(
         db,
         work,
         config.cacheDir,
         640,
-        first ? join(workAbsolutePath(db, work), first.rel_path) : undefined,
+        target ? join(workAbsolutePath(db, work), target.rel_path) : undefined,
       );
       if (!poster) {
         return reply.code(404).send({ error: { code: "not_found", message: "无法生成视频封面" } });
@@ -268,6 +281,52 @@ export function registerWorkRoutes(app: FastifyInstance, db: Db, config: AppConf
     reply.header("content-type", cover.contentType);
     reply.header("cache-control", "private, max-age=600");
     return reply.send(cover.buffer);
+  });
+
+  /** 单章详情（合集/多话作品的某一话），供章节独立详情页使用。 */
+  app.get("/api/works/:id/chapters/:index", async (request, reply) => {
+    const work = findWork(db, Number((request.params as { id: string }).id));
+    if (!work) {
+      return reply.code(404).send({ error: { code: "not_found", message: "作品不存在" } });
+    }
+    const chapters = listWorkChapters(db, work.id);
+    const index = Number((request.params as { index: string }).index);
+    const position = chapters.findIndex((item) => item.sort === index);
+    const chapter = position >= 0 ? chapters[position] : undefined;
+    if (!chapter) {
+      return reply
+        .code(404)
+        .send({ error: { code: "chapter_not_found", message: "章节不存在" } });
+    }
+    const startPage = chapter.start_page;
+    const mediaBase = `/api/works/${work.id}`;
+    return {
+      work: {
+        id: work.id,
+        title: work.title,
+        titleZh: work.title_zh,
+        kind: work.kind,
+        pageCount: work.page_count,
+        authors: listWorkPeople(db, work.id),
+        series: work.series_id ? (findSeries(db, work.series_id)?.name ?? null) : null,
+      },
+      chapter: {
+        index: chapter.sort,
+        title: chapter.title,
+        startPage,
+        pageCount: chapter.page_count,
+      },
+      prevIndex: position > 0 ? chapters[position - 1]!.sort : null,
+      nextIndex: position < chapters.length - 1 ? chapters[position + 1]!.sort : null,
+      coverThumbUrl:
+        work.kind === "video"
+          ? `${mediaBase}/cover?chapter=${chapter.sort}`
+          : `${mediaBase}/pages/${startPage}/thumb`,
+      coverImageUrl:
+        work.kind === "video"
+          ? `${mediaBase}/cover?chapter=${chapter.sort}`
+          : `${mediaBase}/pages/${startPage}/image`,
+    };
   });
 
   app.get("/api/works/:id/pages/:index/thumb", async (request, reply) => {

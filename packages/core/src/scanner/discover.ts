@@ -41,6 +41,142 @@ export interface DiscoveredWork {
   hasComicInfo: boolean;
 }
 
+/** 广告/干扰类视频：文件名命中这些特征时不建作品（无论策略）。 */
+function isLikelyAdVideo(name: string): boolean {
+  return /地址发布器|最新地址|发布页|加群|微信|qq群|客服|直播|推广|广告|扫码|永久域名|app下载|\.apk$/i.test(
+    name,
+  );
+}
+
+/** 同一目录下的视频 → 视频作品：同番号归并主片、多集合并为多章、无番号按策略处理。 */
+async function planVideoWorks(input: {
+  current: { abs: string; rel: string };
+  videos: string[];
+  policy: "skip" | "as-work";
+  onNote?: (note: DiscoverSkip) => void;
+  onSkip?: (skip: DiscoverSkip) => void;
+}): Promise<DiscoveredWork[]> {
+  const { current, videos, policy } = input;
+  const result: DiscoveredWork[] = [];
+
+  const episodes = detectVideoEpisodes(videos);
+  if (episodes) {
+    result.push({
+      kind: "video",
+      sourceKind: "video",
+      relativePath: current.rel || ".",
+      absolutePath: current.abs,
+      title: deriveTitleFromName(current.rel.split("/").pop() ?? current.rel),
+      gid: null,
+      files: [],
+      chapters: episodes.map((name) => ({
+        title: name.replace(/\.[^.]+$/, ""),
+        files: [],
+        videos: [name],
+      })),
+      hasComicInfo: false,
+    });
+    input.onNote?.({
+      path: current.rel || ".",
+      reason: `按剧集处理（${episodes.length} 集，同一目录）`,
+    });
+    return result;
+  }
+
+  const groups = new Map<string, Array<{ name: string; size: number }>>();
+  const unmatched: string[] = [];
+  for (const name of videos) {
+    const parsed = parseAvFilename(name);
+    if (!parsed) {
+      unmatched.push(name);
+      continue;
+    }
+    let size = 0;
+    try {
+      size = (await stat(join(current.abs, name))).size;
+    } catch {
+      size = 0;
+    }
+    const list = groups.get(parsed.code) ?? [];
+    list.push({ name, size });
+    groups.set(parsed.code, list);
+  }
+
+  const unmatchedVideos: string[] = [];
+  for (const name of unmatched) {
+    const relative = joinRelative(current.rel, name);
+    if (isLikelyAdVideo(name)) {
+      input.onSkip?.({ path: relative, reason: "视频文件名命中广告特征，判定为广告/干扰" });
+      continue;
+    }
+    if (policy === "as-work") {
+      unmatchedVideos.push(name);
+      continue;
+    }
+    input.onSkip?.({ path: relative, reason: "视频无标准番号（UNMATCHED_VIDEO_POLICY=as-work 可入库）" });
+  }
+
+  // 目录即整理：同一目录下的多个无番号视频合并成一个作品（每集一个分部），
+  // 不再把每个文件都拆成独立作品。
+  if (unmatchedVideos.length === 1) {
+    const name = unmatchedVideos[0]!;
+    result.push({
+      kind: "video",
+      sourceKind: "video",
+      relativePath: joinRelative(current.rel, name),
+      absolutePath: join(current.abs, name),
+      title: deriveTitleFromName(name.replace(/\.[^.]+$/, "")),
+      gid: null,
+      files: [],
+      hasComicInfo: false,
+    });
+  } else if (unmatchedVideos.length > 1) {
+    const sorted = [...unmatchedVideos].sort(naturalCompare);
+    result.push({
+      kind: "video",
+      sourceKind: "video",
+      relativePath: current.rel || ".",
+      absolutePath: current.abs,
+      title: deriveTitleFromName(current.rel.split("/").pop() ?? current.rel),
+      gid: null,
+      files: [],
+      chapters: sorted.map((name) => ({
+        title: name.replace(/\.[^.]+$/, ""),
+        files: [],
+        videos: [name],
+      })),
+      hasComicInfo: false,
+    });
+    input.onNote?.({
+      path: current.rel || ".",
+      reason: `同目录 ${sorted.length} 个无番号视频合并为一个作品`,
+    });
+  }
+
+  for (const [code, list] of groups) {
+    list.sort((a, b) => b.size - a.size || naturalCompare(a.name, b.name));
+    const main = list[0]!;
+    result.push({
+      kind: "video",
+      sourceKind: "video",
+      relativePath: joinRelative(current.rel, main.name),
+      absolutePath: join(current.abs, main.name),
+      title: code,
+      gid: null,
+      files: [],
+      code,
+      hasComicInfo: false,
+    });
+    if (list.length > 1) {
+      input.onNote?.({
+        path: joinRelative(current.rel, main.name),
+        reason: `同番号 ${code} 共 ${list.length} 个文件，仅主片入库（其余视为版本/广告）`,
+      });
+    }
+  }
+  return result;
+}
+
 export interface DiscoverSkip {
   path: string;
   reason: string;
@@ -193,10 +329,13 @@ export async function* discoverWorks(
       images.length <= COLLECTION_MAX_ROOT_IMAGES &&
       videos.length <= COLLECTION_MAX_ROOT_IMAGES
     ) {
-      const setLike =
-        isSetCollectionPath(current.rel) ||
-        countDateLike(subdirs) / subdirs.length >= 0.6 ||
-        countVolumeLike(subdirs) / subdirs.length >= 0.6;
+      // 目录层级本身就是「整理」：子目录若是日期/序号/同一部作品的卷话，就合并成一个合集。
+      const allGeneric = subdirs.every((name) => DATE_LIKE.test(name) || isVolumeLikeName(name));
+      const sameWork = sharedChapterBase(subdirs) !== null;
+      const organizedAsChapters =
+        countGalleryLike(subdirs) === 0 && (allGeneric || sameWork || isSetCollectionPath(current.rel));
+      // 含 E-H 画廊标记的目录（如 EhViewer 画廊库）保持“一画廊一作品”，不按章节合并。
+      const setLike = !/ehviewer/i.test(current.rel) && organizedAsChapters;
       if (setLike) {
         const chapters = await collectCollectionChapters(current.abs, subdirs, images, videos);
         if (chapters) {
@@ -226,104 +365,27 @@ export async function* discoverWorks(
       }
     }
 
-    // 2) 视频作品：按番号归并，主片=同番号体积最大；无番号视为广告/干扰。
+    // 2) 视频作品：按番号归并，主片=同番号体积最大；无番号按策略处理（默认入库）。
     if (videos.length > 0 && images.length === 0) {
-      // 2.0) 同一目录下多集（第01话 / EP02 / CD1 / 前篇…）：合并为一个视频作品，每集一章。
-      const episodes = detectVideoEpisodes(videos);
-      if (episodes) {
+      const policy = options.unmatchedVideoPolicy ?? "as-work";
+      const videoWorks = await planVideoWorks({
+        current,
+        videos,
+        policy,
+        onNote: options.onNote,
+        onSkip: options.onSkip,
+      });
+      for (const work of videoWorks) {
         works += 1;
-        yield {
-          kind: "video",
-          sourceKind: "video",
-          relativePath: current.rel || ".",
-          absolutePath: current.abs,
-          title: deriveTitleFromName(current.rel.split("/").pop() ?? current.rel),
-          gid: null,
-          files: [],
-          chapters: episodes.map((name) => ({
-            title: name.replace(/\.[^.]+$/, ""),
-            files: [],
-            videos: [name],
-          })),
-          hasComicInfo: false,
-        };
+        yield work;
+      }
+      if (videoWorks.length > 0) continue;
+      if (subdirs.length > 0) {
+        // 目录里的视频一个都没入库时不要 `continue`：否则整个子树会被丢掉。
         options.onNote?.({
           path: current.rel || ".",
-          reason: `按剧集处理（${episodes.length} 集，同一目录）`,
+          reason: "目录内有未入库视频，已继续扫描其子目录",
         });
-        continue;
-      }
-      const groups = new Map<string, Array<{ name: string; size: number }>>();
-      const ads: string[] = [];
-      for (const name of videos) {
-        const parsed = parseAvFilename(name);
-        if (!parsed) {
-          ads.push(name);
-          continue;
-        }
-        let size = 0;
-        try {
-          size = (await stat(join(current.abs, name))).size;
-        } catch {
-          size = 0;
-        }
-        const list = groups.get(parsed.code) ?? [];
-        list.push({ name, size });
-        groups.set(parsed.code, list);
-      }
-      const policy = options.unmatchedVideoPolicy ?? "skip";
-      for (const ad of ads) {
-        if (policy === "as-work") {
-          works += 1;
-          yield {
-            kind: "video",
-            sourceKind: "video",
-            relativePath: joinRelative(current.rel, ad),
-            absolutePath: join(current.abs, ad),
-            title: deriveTitleFromName(ad.replace(/\.[^.]+$/, "")),
-            gid: null,
-            files: [],
-            hasComicInfo: false,
-          };
-          continue;
-        }
-        options.onSkip?.({
-          path: joinRelative(current.rel, ad),
-          reason: "视频无标准番号，判定为广告/干扰文件",
-        });
-      }
-      for (const [code, list] of groups) {
-        list.sort((a, b) => b.size - a.size || naturalCompare(a.name, b.name));
-        const main = list[0]!;
-        works += 1;
-        yield {
-          kind: "video",
-          sourceKind: "video",
-          relativePath: joinRelative(current.rel, main.name),
-          absolutePath: join(current.abs, main.name),
-          title: code,
-          gid: null,
-          files: [],
-          code,
-          hasComicInfo: false,
-        };
-        if (list.length > 1) {
-          options.onNote?.({
-            path: joinRelative(current.rel, main.name),
-            reason: `同番号 ${code} 共 ${list.length} 个文件，仅主片入库（其余视为版本/广告）`,
-          });
-        }
-      }
-      // 没有任何番号作品时不要 `continue`：否则整个子树会被丢掉（P0-1）。
-      if (groups.size === 0 && policy === "skip") {
-        if (subdirs.length > 0) {
-          options.onNote?.({
-            path: current.rel || ".",
-            reason: "目录内有未识别番号的视频，已继续扫描其子目录",
-          });
-        }
-      } else {
-        continue;
       }
     }
 
@@ -358,6 +420,21 @@ export async function* discoverWorks(
         reason: `目录含 ${images.length} 张图片与 ${subdirs.length} 个子目录，按容器目录继续下钻`,
       });
     }
+    // 4.5) 图片与视频同目录：图片照常收录后，视频单独成作品（不再被整目录吞掉）。
+    if (videos.length > 0 && images.length > 0) {
+      const videoWorks = await planVideoWorks({
+        current,
+        videos,
+        policy: options.unmatchedVideoPolicy ?? "as-work",
+        onNote: options.onNote,
+        onSkip: options.onSkip,
+      });
+      for (const work of videoWorks) {
+        works += 1;
+        yield work;
+      }
+    }
+
     if (isImageWork) {
       works += 1;
       yield {
@@ -447,7 +524,7 @@ async function readImageContainer(
       subdirs,
     };
   }
-  return { images, videos, hasComicInfo, hasEhviewer, hasArchive, subdirs };
+  return { images, videos, hasComicInfo, hasEhviewer, hasArchive, subdirs: subdirs.sort(naturalCompare) };
 }
 
 const COLLECTION_MAX_SUBDIRS = 2000;
@@ -474,6 +551,29 @@ function countVolumeLike(names: readonly string[]): number {
   return names.filter(isVolumeLikeName).length;
 }
 
+/** 去掉卷/话/序号后缀后的标题基名；用于判断子目录是否是同一部作品的卷话。 */
+function chapterBaseName(name: string): string {
+  return name
+    .replace(/(?:第\s*\d+\s*[话話集卷部册]|(?:vol|volume|ch|chapter|part|ep|episode)[\s._-]*\d{1,3}|\d{1,3})\s*$/i, "")
+    .trim()
+    .replace(/[\s._-]+$/, "");
+}
+
+/** 所有子目录去掉卷话后缀后是否共享同一基名（同一部作品的多卷/多话）。 */
+function sharedChapterBase(names: readonly string[]): string | null {
+  const bases = names.map(chapterBaseName).filter((base) => base !== "");
+  if (bases.length !== names.length) return null;
+  const unique = [...new Set(bases)];
+  return unique.length === 1 && (unique[0]?.length ?? 0) >= 2 ? unique[0]! : null;
+}
+
+/** 画廊式命名（`1105992-标题`、`g1105992-标题`）：视为独立作品，不并入合集。 */
+const GALLERY_LIKE = /^(?:g?\d{5,})[-_ ]/i;
+
+function countGalleryLike(names: readonly string[]): number {
+  return names.filter((name) => GALLERY_LIKE.test(name.trim())).length;
+}
+
 /** 合集的明确层级：`真人合集杂图/<作者>/<日期>`、`写真/<套图>`、`杂/QQ/...`。 */
 function isSetCollectionPath(rel: string): boolean {
   const parts = rel.split("/");
@@ -489,6 +589,9 @@ function isSetCollectionPath(rel: string): boolean {
     return false;
   }
   if (top === "av") return parts.length === 2 || parts.length === 3;
+  // 兜底：漫画根（本子/comic/漫画）之外的二级目录默认按「合集父目录」尝试，
+  // 是否真的合并交给 collectCollectionChapters 用内容校验（含 ComicInfo/压缩包则放弃）。
+  if (parts.length >= 2 && !/^(本子|comic|漫画)$/i.test(top)) return true;
   return false;
 }
 
@@ -504,55 +607,53 @@ async function collectCollectionChapters(
 ): Promise<DiscoveredChapter[] | null> {
   const chapters: DiscoveredChapter[] = [];
   let totalFiles = 0;
+  let aborted = false;
 
-  const add = (title: string, files: string[], videos: string[]): boolean => {
-    if (files.length === 0 && videos.length === 0) return true;
+  const add = (title: string, files: string[], videos: string[]): void => {
+    if (files.length === 0 && videos.length === 0) return;
     totalFiles += files.length + videos.length;
-    if (totalFiles > COLLECTION_MAX_FILES) return false;
+    if (totalFiles > COLLECTION_MAX_FILES) {
+      aborted = true;
+      return;
+    }
     chapters.push({
       title,
       files: [...files].sort(naturalCompare),
       videos: [...videos].sort(naturalCompare),
     });
-    return true;
   };
 
-  if (!add("散图", rootImages, rootVideos)) return null;
+  if (rootImages.length + rootVideos.length > 0) add("散图", rootImages, rootVideos);
+
+  /**
+   * 递归收集：子目录各算一个分部（图片和视频都记）。
+   * 之前遇到「某层既有图片又有子目录」「某层含压缩包」就整棵放弃合并，
+   * 导致图集被拆成一个个小作品；现在改为跳过该层、继续收集其它分部。
+   */
+  const visit = async (prefix: string, absPath: string, depth: number): Promise<void> => {
+    if (aborted || depth > 4) return;
+    const container = await readImageContainer(absPath, { probe: false });
+    if (!container) return;
+    // 单本漫画（ComicInfo/.ehviewer）或含压缩包：不并进合集，交给后面按作品处理。
+    if (container.hasComicInfo || container.hasEhviewer || container.hasArchive) return;
+    if (container.images.length > 0 || container.videos.length > 0) {
+      const rel = (file: string): string => (prefix ? `${prefix}/${file}` : file);
+      add(prefix || "散图", container.images.map(rel), container.videos.map(rel));
+    }
+    for (const child of container.subdirs.slice(0, 200)) {
+      await visit(prefix ? `${prefix}/${child}` : child, join(absPath, child), depth + 1);
+    }
+  };
 
   for (const name of subdirs) {
-    const childAbs = join(absDir, name);
-    const child = await readImageContainer(childAbs, { probe: false });
-    if (!child) return null;
-    if (child.hasComicInfo || child.hasEhviewer || child.hasArchive) return null;
-    if (child.images.length > 0 || child.videos.length > 0) {
-      if (child.subdirs.length > 0) return null;
-      if (!add(name, child.images.map((file) => `${name}/${file}`), child.videos.map((file) => `${name}/${file}`))) return null;
-      continue;
-    }
-    if (child.subdirs.length > 0) {
-      // 中间包装层（例如 真人合集/几时宁/宁/日期）
-      for (const inner of child.subdirs) {
-        const leaf = await readImageContainer(join(childAbs, inner), { probe: false });
-        if (!leaf) return null;
-        if (leaf.hasComicInfo || leaf.hasEhviewer || leaf.hasArchive) return null;
-        if (
-          !add(
-            `${name}/${inner}`,
-            leaf.images.map((file) => `${name}/${inner}/${file}`),
-            leaf.videos.map((file) => `${name}/${inner}/${file}`),
-          )
-        ) {
-          return null;
-        }
-      }
-      continue;
-    }
-    return null;
+    await visit(name, join(absDir, name), 0);
   }
 
+  if (aborted) return null;
   if (chapters.length === 0) return null;
-  // 纯视频合集通常只有几话，不套用图片合集的 3 文件下限。
-  if (totalFiles < 3 && chapters.every((chapter) => chapter.videos.length === 0)) return null;
+  // 两个及以上分部即视为合集；纯视频合集同样适用（不再受 3 文件下限限制）。
+  if (chapters.length < 2) return null;
+  if (totalFiles < 2) return null;
   return chapters;
 }
 

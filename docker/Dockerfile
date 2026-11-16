@@ -4,6 +4,7 @@
 #
 # 构建（本机）：
 #   wsl -d Ubuntu -- docker buildx build --builder neko --platform linux/amd64 -t nekoshelf:dev --load \
+#     . -f docker/Dockerfile
 
 FROM node:24-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
@@ -58,7 +59,7 @@ ENV NODE_ENV=production \
     DATA_MODE=readonly \
     ENABLE_SCRAPER=false \
     SCAN_ON_START=false \
-    UNMATCHED_VIDEO_POLICY=skip \
+    UNMATCHED_VIDEO_POLICY=as-work \
     SCAN_DELAY_MS=0 \
     TZ=Asia/Shanghai
 

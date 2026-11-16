@@ -332,6 +332,47 @@ export function listWorkPages(db: Db, workId: number): PageRow[] {
     .all(workId) as unknown as PageRow[];
 }
 
+/** 只取前 limit 页（几千页的大合集不必整表加载）。 */
+export function listWorkPageRows(db: Db, workId: number, limit?: number): PageRow[] {
+  if (!limit || limit <= 0) return listWorkPages(db, workId);
+  return db
+    .prepare("SELECT * FROM pages WHERE work_id = ? ORDER BY ordinal LIMIT ?")
+    .all(workId, limit) as unknown as PageRow[];
+}
+
+/** 按序号取单页（读图/读缩略图走这里，避免整表加载）。 */
+export function findWorkPage(db: Db, workId: number, ordinal: number): PageRow | undefined {
+  return db
+    .prepare("SELECT * FROM pages WHERE work_id = ? AND ordinal = ?")
+    .get(workId, ordinal) as unknown as PageRow | undefined;
+}
+
+/** 是否存在双语对照页（detail 里只需布尔值，不要整表配对）。 */
+export function hasPagePairLinks(db: Db, workId: number): boolean {
+  const row = db
+    .prepare(
+      "SELECT 1 AS ok FROM pages WHERE work_id = ? AND pair_key IS NOT NULL AND lang IS NOT NULL LIMIT 1",
+    )
+    .get(workId);
+  return row !== undefined;
+}
+
+/** 给定 pair_key 集合，返回每个 key 的首个页码（用于少量页的对照映射）。 */
+export function findPairOrdinals(db: Db, workId: number, pairKeys: string[]): Map<string, number> {
+  const map = new Map<string, number>();
+  if (pairKeys.length === 0) return map;
+  const placeholders = pairKeys.map(() => "?").join(", ");
+  const rows = db
+    .prepare(
+      `SELECT ordinal, pair_key FROM pages WHERE work_id = ? AND pair_key IN (${placeholders}) ORDER BY ordinal`,
+    )
+    .all(workId, ...pairKeys) as unknown as Array<{ ordinal: number; pair_key: string }>;
+  for (const row of rows) {
+    if (!map.has(row.pair_key)) map.set(row.pair_key, row.ordinal);
+  }
+  return map;
+}
+
 export interface WorkListResult {
   items: WorkRow[];
   total: number;
@@ -844,20 +885,33 @@ export interface PagePairLink {
 }
 
 export function listPagePairLinks(db: Db, workId: number): PagePairLink[] {
-  const pages = listWorkPages(db, workId);
-  return pages.map((page) => {
-    let variantOf: number | null = null;
-    if (page.pair_key) {
-      const counterpart = pages.find(
-        (other) => other.id !== page.id && other.pair_key === page.pair_key,
-      );
-      variantOf = counterpart ? counterpart.ordinal : null;
-    }
+  const rows = db
+    .prepare(
+      "SELECT ordinal, lang, pair_key FROM pages WHERE work_id = ? AND pair_key IS NOT NULL ORDER BY ordinal",
+    )
+    .all(workId) as unknown as Array<{
+    ordinal: number;
+    lang: string | null;
+    pair_key: string | null;
+  }>;
+  // O(n)：每个 pair_key 记录前两个页码，避免逐页 find 造成 O(n²)。
+  const firstByKey = new Map<string, number>();
+  const secondByKey = new Map<string, number>();
+  for (const row of rows) {
+    const key = row.pair_key!;
+    if (!firstByKey.has(key)) firstByKey.set(key, row.ordinal);
+    else if (!secondByKey.has(key)) secondByKey.set(key, row.ordinal);
+  }
+  return rows.map((row) => {
+    const key = row.pair_key!;
+    const first = firstByKey.get(key)!;
+    const second = secondByKey.get(key);
+    const counterpart = row.ordinal === first ? (second ?? null) : first;
     return {
-      ordinal: page.ordinal,
-      lang: page.lang ?? null,
-      pairKey: page.pair_key ?? null,
-      variantOf,
+      ordinal: row.ordinal,
+      lang: row.lang ?? null,
+      pairKey: key,
+      variantOf: counterpart,
     };
   });
 }

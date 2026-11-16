@@ -1,7 +1,5 @@
 # NekoShelf
 
-<img src="docs/icon-256.png" alt="NekoShelf" width="96" height="96" />
-
 [中文](README.md) | **English**
 
 A single-container private media library for the home NAS: it indexes **manga folders, archives (.zip/.7z/.rar/.cbz), image sets and videos** into one browsable library you can read and play in the browser. **Read-only by default** — no renaming, no extracting, no moving your files.
@@ -50,22 +48,19 @@ docker buildx build -t nekoshelf:0.6.1 --load -f docker/Dockerfile .
 docker compose -f docker/docker-compose.yml up -d
 ```
 
-## UI
+## Screenshots
 
-Screenshots below use **synthetic sample data** (sample works, authors and pages) — no real media content.
-
-| Library | Reader |
+| Library | Reader (double page) |
 | --- | --- |
-| ![Library](docs/screenshots/ui_index.png) | ![Reader](docs/screenshots/ui_reader_1.png) |
+| ![Library](docs/screenshots/m6_index.png) | ![Reader](docs/screenshots/m3-reader-panel-390.png) |
 
 | Work detail | Browse by author |
 | --- | --- |
-| ![Work](docs/screenshots/ui_works_1.png) | ![Authors](docs/screenshots/ui_authors.png) |
+| ![Detail](docs/screenshots/m4_works_2.png) | ![Authors](docs/screenshots/m6_authors.png) |
 
-| Jobs | Settings |
+| File tree | Jobs |
 | --- | --- |
-| ![Jobs](docs/screenshots/ui_jobs.png) | ![Settings](docs/screenshots/ui_settings.png) |
-
+| ![Tree](docs/screenshots/m6_tree.png) | ![Jobs](docs/screenshots/m4_jobs.png) |
 
 ## Environment variables
 
@@ -102,7 +97,7 @@ Node.js 24 + TypeScript (strict, ESM) · Fastify 5 · built-in `node:sqlite` (WA
 apps/        server (HTTP API + static web), web (React app)
 packages/    core (domain, parsers, scanner, DB), adapters (E-H / LLM)
 docker/      Dockerfile, compose
-docs/        ADRs, API contract
+docs/        ADRs, API contract, screenshots
 ```
 
 ## License

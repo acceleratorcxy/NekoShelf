@@ -19,6 +19,12 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
       LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
       CACHE_LIMIT_GB: "20"
+      # 启动即扫描一次（无头部署/定时任务友好）
+      SCAN_ON_START: ${SCAN_ON_START:-false}
+      # 无番号视频：as-work=入库为作品（默认），skip=只记跳过
+      UNMATCHED_VIDEO_POLICY: ${UNMATCHED_VIDEO_POLICY:-as-work}
+      # 反向代理子路径部署时设置，例如 /nekoshelf
+      BASE_PATH: ${BASE_PATH:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       # 媒体根目录：默认只读；开启 writeback 整理时改成 :rw（风险自负，见 

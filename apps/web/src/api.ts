@@ -182,6 +182,31 @@ export interface RelatedGroups {
   name?: WorkCard[];
 }
 
+/* ── 章节详情（合集/多话作品的单章） ─────────────────────── */
+
+export interface ChapterDetail {
+  work: {
+    id: string;
+    title: string;
+    titleZh?: string | null;
+    kind: WorkKind;
+    pageCount: number;
+    authors: WorkAuthor[];
+    series: string | null;
+  };
+  chapter: WorkChapter;
+  prevIndex: number | null;
+  nextIndex: number | null;
+  coverThumbUrl: string;
+  coverImageUrl: string;
+}
+
+export async function getChapter(workId: string, index: number): Promise<ChapterDetail> {
+  return request<ChapterDetail>(
+    `/api/works/${encodeURIComponent(workId)}/chapters/${encodeURIComponent(String(index))}`,
+  );
+}
+
 export interface WorkDetailResponse {
   work: WorkDetail;
   editions: WorkEdition[];
@@ -714,6 +739,9 @@ export const api = {
     request<TreePageData>(`/api/libraries/${encodeURIComponent(libraryId)}/tree`, {
       query: { path },
     }),
+
+  getChapter: (workId: string, index: number) =>
+    request<ChapterDetail>(`/api/works/${encodeURIComponent(workId)}/chapters/${encodeURIComponent(String(index))}`),
 
   getWork: (workId: string, signal?: AbortSignal, options: { preview?: boolean } = {}) =>
     request<WorkDetailResponse>(`/api/works/${encodeURIComponent(workId)}`, {

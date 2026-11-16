@@ -37,6 +37,39 @@ function emptyFilters(): SearchFilters {
   return { raw: "", terms: [], excludes: [], exact: [], wildcards: [], tags: [] };
 }
 
+/** 带引号的词视为一个整体（引号内允许空格），例如 `tag:"fbody writing"`。 */
+export function tokenize(input: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let quoted = false;
+  for (const char of input) {
+    if (char === '"') {
+      quoted = !quoted;
+      current += char;
+      continue;
+    }
+    if (!quoted && /[\s,]/.test(char)) {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += char;
+  }
+  if (current) tokens.push(current);
+  return tokens;
+}
+
+/** 去掉成对的外层引号。 */
+function stripQuotes(value: string): string {
+  const text = value.trim();
+  if (text.length >= 2 && text.startsWith('"') && text.endsWith('"')) {
+    return text.slice(1, -1).replace(/""/g, '"');
+  }
+  return text;
+}
+
 function parseRange(value: string): { min?: number; max?: number } {
   const text = value.trim();
   if (!text) return {};
@@ -83,7 +116,7 @@ export function parseSearchQuery(input: string | undefined | null): SearchFilter
   const page: { min?: number; max?: number } = {};
   const read: { min?: number; max?: number } = {};
 
-  for (const token of raw.split(/[\s,]+/)) {
+  for (const token of tokenize(raw)) {
     if (!token) continue;
     if (token.startsWith("-") && token.length > 1) {
       const value = token.slice(1);
@@ -129,7 +162,7 @@ export function parseSearchQuery(input: string | undefined | null): SearchFilter
 }
 
 function parseTagFilter(value: string): { namespace?: string; name: string } | null {
-  const trimmed = value.trim();
+  const trimmed = stripQuotes(value);
   if (!trimmed) return null;
   const colon = trimmed.indexOf(":");
   if (colon > 0) {

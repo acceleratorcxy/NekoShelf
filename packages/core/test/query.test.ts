@@ -71,6 +71,18 @@ describe("parseSearchQuery", () => {
     expect(filters.readMax).toBe(30);
   });
 
+  it("引号内的标签名整体作为一个过滤器", () => {
+    const single = parseSearchQuery('tag:"big breasts"');
+    expect(single.tags).toEqual([{ name: "big breasts", exclude: false }]);
+    expect(single.terms).toEqual([]);
+
+    const namespaced = parseSearchQuery('tag:"female:big breasts"');
+    expect(namespaced.tags).toEqual([{ namespace: "female", name: "big breasts", exclude: false }]);
+
+    const excluded = parseSearchQuery('-tag:"big breasts"');
+    expect(excluded.tags).toEqual([{ name: "big breasts", exclude: true }]);
+  });
+
   it("支持区间与复合边界", () => {
     const filters = parseSearchQuery("pages:20-40 read:0-10");
     expect(filters.pageMin).toBe(20);

@@ -17,6 +17,12 @@ import { WORK_KIND_LABEL, formatDateTime, percentOf } from "../format";
 
 const THUMB_LIMIT = 12;
 
+/** 标签搜索词：含空格/引号时给整个值加引号，保证被解析成单个 tag 过滤器。 */
+function tagSearchToken(namespace: string, name: string): string {
+  const value = namespace === "tag" ? name : `${namespace}:${name}`;
+  return /[\s"]/.test(value) ? `tag:"${value.replace(/"/g, '""')}"` : `tag:${value}`;
+}
+
 export function WorkPage() {
   const { id } = useParams<{ id: string }>();
   const workId = id ?? "";
@@ -209,7 +215,7 @@ export function WorkPage() {
                       <Link
                         className="tag-line__link"
                         title="按该标签搜索"
-                        to={`/?q=${encodeURIComponent(`tag:${namespace === "tag" ? name : `${namespace}:${name}`}`)}`}
+                        to={`/?q=${encodeURIComponent(tagSearchToken(namespace, name))}`}
                       >
                         {name}
                       </Link>
@@ -346,11 +352,7 @@ export function WorkPage() {
               <Link
                 key={chapter.index}
                 className="chapter-item"
-                to={
-                  work.kind === "video"
-                    ? `/watch/${work.id}?chapter=${chapter.index}`
-                    : `/reader/${work.id}?page=${chapter.startPage}`
-                }
+                to={`/works/${work.id}/chapters/${chapter.index}`}
               >
                 <span className="chapter-item__title">{chapter.title}</span>
                 <span className="muted">

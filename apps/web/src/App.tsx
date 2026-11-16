@@ -10,6 +10,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { ReaderPage } from "./pages/ReaderPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SetupPage } from "./pages/SetupPage";
+import { ChapterPage } from "./pages/ChapterPage";
 import { WorkPage } from "./pages/WorkPage";
 import {
   AuthorPage,
@@ -60,6 +61,7 @@ export function App() {
         >
           <Route index element={<LibraryPage />} />
           <Route path="works/:id" element={<WorkPage />} />
+          <Route path="works/:id/chapters/:index" element={<ChapterPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="jobs" element={<JobsPage />} />
           <Route path="duplicates" element={<DuplicatesPage />} />

@@ -50,6 +50,7 @@ export function AuthorsPage() {
           <h1>作者</h1>
           <p className="muted">按 ComicInfo 的作者/画师与目录名前缀统计；点进去看该作者的作品。</p>
         </div>
+        <Link className="button button--small" to="/">← 返回书库</Link>
       </header>
       <div className="toolbar">
         <div className="toolbar__field toolbar__field--grow">
@@ -155,6 +156,7 @@ export function SeriesListPage() {
           <h1>系列</h1>
           <p className="muted">来自 ComicInfo 的 Series 字段；同一系列的作品会自动归在一起。</p>
         </div>
+        <Link className="button button--small" to="/">← 返回书库</Link>
       </header>
       <div className="toolbar">
         <div className="toolbar__field toolbar__field--grow">
@@ -399,6 +401,9 @@ export function TreePage() {
           <h1>文件树</h1>
           <p className="muted">按磁盘真实结构浏览（只读）：图片与视频可直接预览，按目录连续查看。</p>
         </div>
+        <Link className="button button--small" to="/">
+          ← 返回书库
+        </Link>
       </header>
       <div className="toolbar">
         <div className="toolbar__field">

@@ -8,6 +8,8 @@ import type { Db, WorkRow } from "@nekoshelf/core";
 import {
   detectArchiveKind,
   findLibrary,
+  findWorkPage,
+  listWorkPageRows,
   listWorkPages,
   looksLikeCoverImage,
   readArchiveContent,
@@ -114,8 +116,7 @@ export async function readPageContent(
   index: number,
   cacheDir?: string,
 ): Promise<PageContent> {
-  const pages = listWorkPages(db, work.id);
-  const page = pages[index - 1];
+  const page = findWorkPage(db, work.id, index);
   if (!page) throw new HttpError(404, "not_found", "页不存在");
 
   if (work.source_kind === "directory") {
@@ -216,13 +217,18 @@ export async function thumbnailBuffer(
   size = 320,
 ): Promise<Thumbnail> {
   const thumbsDir = join(cacheDir, "thumbs");
-  const webpPath = join(thumbsDir, `${work.id}-${index}-${size}.webp`);
+  const stamp =
+    createHash("sha1")
+      .update(String(work.fingerprint ?? work.updated_at))
+      .digest("hex")
+      .slice(0, 10) || "x";
+  const webpPath = join(thumbsDir, `${work.id}-${index}-${size}-${stamp}.webp`);
   try {
     return { buffer: await readFile(webpPath), contentType: "image/webp" };
   } catch {
     // miss：下面生成
   }
-  const jpegPath = join(thumbsDir, `${work.id}-${index}-${size}.jpg`);
+  const jpegPath = join(thumbsDir, `${work.id}-${index}-${size}-${stamp}.jpg`);
   try {
     return { buffer: await readFile(jpegPath), contentType: "image/jpeg" };
   } catch {
@@ -294,7 +300,9 @@ export async function clearWorkCache(workId: number, cacheDir: string): Promise<
  * 目录与压缩包同样适用。
  */
 export function resolveCoverIndex(db: Db, work: WorkRow): number | null {
-  const pages = listWorkPages(db, work.id);
+  // 只看最前面 3 页：合集/大压缩包里更靠后的「xxx_cover.jpg」往往属于里面另一本书，
+  // 以前全表 find 会把封面取成别的作品的内页，导致封面与内容错乱。
+  const pages = listWorkPageRows(db, work.id, 3);
   if (pages.length === 0) return null;
   const explicit = pages.find((page) => looksLikeCoverImage(page.name.split("/").pop() ?? page.name));
   return (explicit ?? pages[0]!).ordinal;
@@ -308,13 +316,14 @@ export async function videoPosterBuffer(
   width = 640,
   sourceOverride?: string,
 ): Promise<Buffer | null> {
-  const cachePath = join(cacheDir, "posters", `${work.id}.jpg`);
+  const source = sourceOverride ?? workAbsolutePath(db, work);
+  const cacheKey = createHash("sha1").update(source).digest("hex").slice(0, 10);
+  const cachePath = join(cacheDir, "posters", `${work.id}-${cacheKey}.jpg`);
   try {
     return await readFile(cachePath);
   } catch {
     // miss
   }
-  const source = sourceOverride ?? workAbsolutePath(db, work);
   const ffmpeg = process.env.FFMPEG_PATH?.trim() || "ffmpeg";
   const grab = (seekSeconds: string): Promise<Buffer> =>
     new Promise((resolvePromise, rejectPromise) => {

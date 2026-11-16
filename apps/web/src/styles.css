@@ -3645,3 +3645,37 @@ a.meta-chip:hover { border-color: var(--accent); color: var(--text); }
 @media (max-width: 640px) {
   .tag-line, .author-line { font-size: 13px; }
 }
+
+/* 章节详情页 */
+.chapter-detail {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  align-items: start;
+  margin: 18px 0 8px;
+}
+.chapter-detail__cover img {
+  width: 100%;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  display: block;
+}
+.chapter-detail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.chapter-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+.btn--disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+@media (max-width: 640px) {
+  .chapter-detail { grid-template-columns: 1fr; }
+  .chapter-detail__cover { max-width: 220px; }
+}

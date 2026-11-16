@@ -2,7 +2,7 @@
 
 欢迎提交 Issue 与 Pull Request。请先读 [docs/api-contract.md](docs/api-contract.md)，它记录了接口契约与主要设计取舍。
 
-> English: contributions are welcome. Please read the API contract first; keep PRs small and focused, and describe the user-visible behavior change.
+> English: contributions are welcome. Please read the ADRs and the API contract first; keep PRs small and focused, and describe the user-visible behavior change.
 
 ## 开发环境
 

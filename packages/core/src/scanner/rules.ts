@@ -86,6 +86,22 @@ const VIDEO_EXTENSIONS = new Set([
   ".m4v",
   ".ts",
   ".flv",
+  ".rmvb",
+  ".rm",
+  ".mpg",
+  ".mpeg",
+  ".m2ts",
+  ".mts",
+  ".vob",
+  ".iso",
+  ".3gp",
+  ".ogv",
+  ".asf",
+  ".f4v",
+  ".m2v",
+  ".divx",
+  ".dv",
+  ".wtv",
 ]);
 
 export function extensionOf(name: string): string {

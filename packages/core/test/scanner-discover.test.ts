@@ -54,7 +54,7 @@ describe("库根目录散落无番号视频（P0-1）", () => {
     await imageDir("合集A");
     await imageDir("合集B");
 
-    const { works, notes } = await collect(dir);
+    const { works, notes } = await collect(dir, { unmatchedVideoPolicy: "skip" });
     expect(works.map((work) => work.relativePath).sort()).toEqual(["合集A", "合集B"]);
     // 结构提示不再计入「跳过」（会误导用户以为漏扫）
     expect(notes.some((line) => line.includes("已继续扫描其子目录"))).toBe(true);
@@ -62,7 +62,7 @@ describe("库根目录散落无番号视频（P0-1）", () => {
 
   it("没有子目录时只跳过视频，不产出作品", async () => {
     await writeFile(join(dir, "散落视频.mp4"), Buffer.alloc(16));
-    const { works } = await collect(dir);
+    const { works } = await collect(dir, { unmatchedVideoPolicy: "skip" });
     expect(works).toHaveLength(0);
   });
 });
@@ -112,7 +112,7 @@ describe("扫描汇总与诊断", () => {
   it("报告遍历目录数，零作品时写诊断跳过记录", async () => {
     await writeFile(join(dir, "散落.mp4"), Buffer.alloc(16));
     const library = createLibrary(db, { name: "lib", rootPath: dir, kind: "mixed" });
-    const summary = await scanLibrary(db, library);
+    const summary = await scanLibrary(db, library, { unmatchedVideoPolicy: "skip" });
     expect(summary.works).toBe(0);
     expect(summary.directories).toBe(1);
 
@@ -121,5 +121,39 @@ describe("扫描汇总与诊断", () => {
 
     const skips = listSkipRecords(db, library.id, 50);
     expect(skips.some((skip) => skip.reason.includes("未产出作品"))).toBe(true);
+  });
+});
+
+describe("视频识别增强（0.6.5）", () => {
+  it("默认策略下无番号视频入库（不再静默丢弃）", async () => {
+    await writeFile(join(dir, "自拍合集.mkv"), Buffer.alloc(16));
+    const { works } = await collect(dir);
+    expect(works).toHaveLength(1);
+    expect(works[0]!.kind).toBe("video");
+  });
+
+  it("图片与视频同目录：两者都入库", async () => {
+    await imageDir("合集");
+    await writeFile(join(dir, "合集", "花絮.rmvb"), Buffer.alloc(16));
+    const { works } = await collect(dir);
+    const kinds = works.map((work) => work.kind).sort();
+    expect(kinds).toEqual(["image-set", "video"]);
+  });
+
+  it("扩展名 rmvb/rm/mpg 也算视频，且同目录多个视频合并为一个作品", async () => {
+    await writeFile(join(dir, "a.rmvb"), Buffer.alloc(16));
+    await writeFile(join(dir, "b.mpg"), Buffer.alloc(16));
+    const { works } = await collect(dir);
+    expect(works).toHaveLength(1);
+    expect(works[0]!.kind).toBe("video");
+    expect(works[0]!.chapters).toHaveLength(2);
+    expect(works[0]!.chapters?.map((chapter) => chapter.title)).toEqual(["a", "b"]);
+  });
+
+  it("文件名命中广告特征时不入库", async () => {
+    await writeFile(join(dir, "最新地址发布器.mp4"), Buffer.alloc(16));
+    const { works, skips } = await collect(dir);
+    expect(works).toHaveLength(0);
+    expect(skips.some((line) => line.includes("广告特征"))).toBe(true);
   });
 });

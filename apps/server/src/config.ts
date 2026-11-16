@@ -35,7 +35,11 @@ export interface AppConfig {
   scanOnStart: boolean;
   /** 启动时注入的管理员 Token 明文（`BOOTSTRAP_API_TOKEN`，首次启动写库一次）。 */
   bootstrapApiToken: string;
-  /** 未匹配番号视频的策略（`UNMATCHED_VIDEO_POLICY`）：skip=跳过（默认）、as-work=作为普通视频入库。 */
+  /**
+   * 无标准番号视频的策略（`UNMATCHED_VIDEO_POLICY`）：
+   * - as-work（默认）：作为普通视频作品入库，适合真人/3D/无番号视频库；
+   * - skip：只收录识别出番号的视频（其余记为跳过原因）。
+   */
   unmatchedVideoPolicy: "skip" | "as-work";
   /** 网络卷扫描节流毫秒（`SCAN_DELAY_MS`），SMB/NFS 场景建议 ≥1。 */
   scanDelayMs: number;
@@ -84,7 +88,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     version: env.APP_VERSION ?? packageVersion(),
     scanOnStart: env.SCAN_ON_START === "true",
     bootstrapApiToken: env.BOOTSTRAP_API_TOKEN?.trim() ?? "",
-    unmatchedVideoPolicy: env.UNMATCHED_VIDEO_POLICY === "as-work" ? "as-work" : "skip",
+    unmatchedVideoPolicy: env.UNMATCHED_VIDEO_POLICY === "skip" ? "skip" : "as-work",
     scanDelayMs: Math.max(0, Number(env.SCAN_DELAY_MS ?? 0) || 0),
   };
 }
