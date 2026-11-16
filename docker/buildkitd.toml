@@ -1,0 +1,11 @@
+# BuildKit 配置 —— 供 `docker buildx create --config docker/buildkitd.toml` 使用。
+#
+# 用途：本机网络下 registry-1.docker.io / auth.docker.io 直连会 IPv6 dial timeout，
+# 多架构构建（amd64+arm64）因此拉不到基础镜像。BuildKit 不读取 dockerd 的
+# registry-mirrors/代理设置，必须在这里单独配镜像源。
+#
+# 注意：mirror 由脚本 `scripts/setup-wsl-docker.sh` 与 docker/buildkitd.toml 一起生效；
+# 换镜像源时只改这里，然后删除并重建 builder（配置在 builder 创建时固化进容器）。
+
+[registry."docker.io"]
+  mirrors = ["docker.m.daocloud.io", "docker.1ms.run"]

@@ -1,0 +1,56 @@
+# 生产部署用 compose（用镜像，不在 NAS 上构建）。
+#
+# 1) 复制 .env.example 为 .env 并改 MEDIA_DIR / PUID/PGID / 端口
+# 2) docker compose -f docker-compose.prod.yml up -d
+# 3) 浏览器打开 http://NAS地址:8080/setup 完成初始化
+#
+# 关键约束：
+# - /data 默认只读（:ro）；开 writeback 整理时才改 :rw
+# - /config 必须是本地磁盘卷（SQLite WAL 不支持 SMB/NFS）
+# - PUID/PGID 与媒体目录属主一致，否则写 /config 或读 /data 会失败
+
+services:
+  nekoshelf:
+    image: ${NEKOSHELF_IMAGE:-nekoshelf:0.5.0}
+    container_name: nekoshelf
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      PASSWORD_PEPPER: ${PASSWORD_PEPPER:-}
+      DATA_MODE: ${DATA_MODE:-readonly}
+      ENABLE_SCRAPER: ${ENABLE_SCRAPER:-false}
+      ENABLE_LLM_SEARCH: ${ENABLE_LLM_SEARCH:-false}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      CACHE_LIMIT_GB: ${CACHE_LIMIT_GB:-20}
+      MAX_TRANSCODE: ${MAX_TRANSCODE:-1}
+      HWACCEL: ${HWACCEL:-auto}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    volumes:
+      - ${MEDIA_DIR:-./media}:/data:ro
+      - ${CONFIG_DIR:-./config}:/config
+      - ${CACHE_DIR:-./cache}:/cache
+    user: "${PUID:-1000}:${PGID:-1000}"
+    healthcheck:
+      # 镜像内没有 curl/wget，用自带的 node 发请求（与 Dockerfile HEALTHCHECK 一致）
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:'+(process.env.HTTP_PORT||8080)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

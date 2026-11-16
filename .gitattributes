@@ -1,0 +1,25 @@
+* text=auto eol=lf
+*.md text eol=lf
+*.ts text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sh text eol=lf
+
+# binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.avif binary
+*.gif binary
+*.mp4 binary
+*.zip binary
+*.7z binary
+*.rar binary
+*.cbz binary
+*.docx binary
+*.pdf binary
+*.ico binary
+*.woff2 binary

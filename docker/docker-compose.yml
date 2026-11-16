@@ -1,0 +1,29 @@
+# 开发/自建用 compose（生产草案见 docs 附录 C）。
+# 用法：docker compose -f docker/docker-compose.yml up -d --build
+services:
+  nekoshelf:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: nekoshelf:dev
+    container_name: nekoshelf
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      # readonly（默认，安全）| writeback（允许整理重命名/移动；仍只做 rename，不删除）
+      DATA_MODE: ${DATA_MODE:-readonly}
+      ENABLE_SCRAPER: ${ENABLE_SCRAPER:-false}
+      # 自然语言搜索：不开则 AI 相关接口一律 409
+      ENABLE_LLM_SEARCH: ${ENABLE_LLM_SEARCH:-false}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      CACHE_LIMIT_GB: "20"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      # 媒体根目录：默认只读；开启 writeback 整理时改成 :rw（风险自负，见 
+      - ${MEDIA_DIR:-./media}:/data:ro
+      - ./config:/config
+      - ./cache:/cache
+    user: "1000:1000"
+    restart: unless-stopped

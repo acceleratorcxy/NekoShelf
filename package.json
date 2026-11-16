@@ -1,0 +1,23 @@
+{
+  "name": "nekoshelf",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @nekoshelf/server dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:core": "pnpm --filter @nekoshelf/core test",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.2"
+  },
+  "license": "MIT",
+  "version": "0.6.4"
+}

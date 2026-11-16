@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用帮助 / Documentation
+    url: https://github.com/acceleratorcxy/NekoShelf#readme
+    about: 先读 README 与应用内 /help 页
+  - name: 安全问题 / Security
+    url: https://github.com/acceleratorcxy/NekoShelf/security/advisories/new
+    about: 请勿公开提交安全漏洞

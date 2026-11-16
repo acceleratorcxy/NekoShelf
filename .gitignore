@@ -1,0 +1,42 @@
+# dependencies / build
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+coverage/
+.pnpm-store/
+
+# runtime data (never commit user data or generated caches)
+data/
+cache/
+*.db
+*.db-wal
+*.db-shm
+
+# test sample mounts (real media stays outside the repo)
+tests/samples/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# logs
+*.log
+logs/
+npm-debug.log*
+pnpm-debug.log*
+
+# 部署包本地产物
+deploy/.env
+deploy/backups/
+*.zip
+feedback/
+

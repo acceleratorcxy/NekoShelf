@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="description" content="NekoShelf 本地漫画与媒体书库" />
+    <meta name="theme-color" content="#0e1013" />
+    <title>NekoShelf 猫猫书架</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script>
+      // 首屏前应用主题，避免深色默认值闪一下白。
+      (function () {
+        try {
+          var theme = localStorage.getItem("nekoshelf.theme");
+          if (theme === "light" || theme === "dark") {
+            document.documentElement.dataset.theme = theme;
+          }
+        } catch (error) {
+          /* localStorage 不可用时保持默认深色 */
+        }
+        // 首屏前确定交互模式，避免触摸设备先闪一下鼠标样式
+        try {
+          var mode = localStorage.getItem("nekoshelf.interaction-mode");
+          var pref = mode === "touch" || mode === "mouse" ? mode : "auto";
+          var input = pref;
+          if (pref === "auto") {
+            var coarse =
+              window.matchMedia("(pointer: coarse)").matches ||
+              (window.matchMedia("(hover: none)").matches && navigator.maxTouchPoints > 0);
+            input = coarse ? "touch" : "mouse";
+          }
+          document.documentElement.dataset.input = input;
+          document.documentElement.dataset.inputPref = pref;
+        } catch (error) {
+          /* 拿不到指针信息时交给 React 再判断 */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

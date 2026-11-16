@@ -1,0 +1,61 @@
+name: Bug 报告 / Bug report
+description: 报告可复现的问题（请先搜索是否已有同类 issue）
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请**不要**在 issue 里粘贴真实媒体文件、个人路径、Cookie 或 Token。
+        安全问题请走私密报告（见 SECURITY.md）。
+  - type: input
+    id: version
+    attributes:
+      label: 版本 / Version
+      description: 镜像 tag 或 package.json 版本
+      placeholder: "0.5.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: 部署方式 / Deployment
+      options:
+        - Docker（飞牛 fnOS）
+        - Docker（群晖 DSM）
+        - Docker（其他 NAS / Linux）
+        - 本地开发（pnpm dev）
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么 / What happened
+      description: 现象 + 期望行为
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      placeholder: |
+        1. 添加媒体库（目录结构：...）
+        2. 扫描 ...
+        3. 打开 ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / Logs
+      description: 只贴相关行；请先脱敏路径、主机名与凭据
+      render: shell
+    validations:
+      required: false
+  - type: input
+    id: env
+    attributes:
+      label: 环境 / Environment
+      description: 浏览器/客户端、NAS 型号与 CPU 架构（amd64/arm64）、Docker 版本
+      placeholder: "Chrome 131 / 群晖 DS220+ arm64 / Docker 24.0"
+    validations: false
